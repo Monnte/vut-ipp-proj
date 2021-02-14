@@ -7,7 +7,6 @@
 # Version: 1.0
 # PHP 
 # ----------------------------
-# Error fix bad jumps nepočtiat do fw ani backwords a otázka treba ratat aj jumps
 ini_set('display_errors', 'stderr');
 
 # INSTRUCTION SET
@@ -59,7 +58,7 @@ $fwJumpsCount = 0;
 $backJumpsCount = 0;
 $badJumpsCount = 0;
 $labels = array();
-$jumpLabels = array();
+$jumpInstructions = array();
 $options = getopt("", ["help", "stats:", "loc", "comments", "labels", "jumps", "fwjumps", "backjumps", "badjumps"]);
 $longOptions = ["help", "stats", "loc", "comments", "labels", "jumps", "fwjumps", "backjumps", "badjumps"];
 
@@ -129,11 +128,24 @@ while ($line = fgets(STDIN)) {
 
 # STATS BONUS 
 $labelCount = count(array_unique($labels));
-foreach ($jumpLabels as $label)
-    if (!array_key_exists($label, $labels))
+foreach ($jumpInstructions as $key => $jump) {
+    if (!array_key_exists($jump[1], $labels)) {
         $badJumpsCount++;
+        continue;
+    }
+    if ($jump[0] === "CALL") {
+        $fwJumpsCount++;
+        $backJumpsCount++;
+        continue;
+    }
+    if ($key == $labels[$jump[1]])
+        exit(99);
 
-
+    if ($key < $labels[$jump[1]])
+        $fwJumpsCount++;
+    else
+        $backJumpsCount++;
+}
 
 $file = null;
 $hasFile = false;
@@ -219,7 +231,7 @@ function printStatsToFile($file, $stats)
 # PROCESS INSTRUCTION NAME AND ARGUMENTS
 function processLine($instruction, $arguments)
 {
-    global $root, $order, $labels, $jumpCount, $fwJumpsCount, $backJumpsCount, $labels, $jumpLabels, $xmlOut, $instructionsArgs;
+    global $root, $order, $labels, $jumpCount, $labels, $jumpInstructions, $xmlOut, $instructionsArgs;
 
     if (!array_key_exists($instruction, $instructionsArgs))
         exit(22);
@@ -234,12 +246,7 @@ function processLine($instruction, $arguments)
     if (preg_match('/^CALL$|^RETURN$|^JUMP$|^JUMPIFEQ$|^JUMPIFNEQ$/', $instruction)) {
         $jumpCount++;
         if (count($arguments) > 0) {
-            if (array_key_exists($arguments[0], $labels))
-                $backJumpsCount++;
-            else
-                $fwJumpsCount++;
-
-            array_push($jumpLabels, $arguments[0]);
+            $jumpInstructions[$order] = [$instruction, $arguments[0]];
         }
     }
 
@@ -308,7 +315,7 @@ function parseArgument($arg, $expectedType)
             exit(23);
     }
 
-    $value =  preg_replace(["/&/", "/>/", "/</"], ["&amp;", "&gt;", "&lt;"], $value);
+    $value =  preg_replace(["/&/", "/>/", "/</", "/\"\"/", "\""], ["&amp;", "&gt;", "&lt;", "&apos;", "&apos;"], $value);
     return [$type, $value];
 }
 
