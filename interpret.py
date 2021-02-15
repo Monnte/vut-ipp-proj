@@ -12,8 +12,10 @@ import re
 import xml.etree.ElementTree as ET
 
 currentInstIndex = 0
-frames = {"GF":{},"LF":{},"TF":{}}
-currentLF = -1
+frames = {"GF":{}}
+framesStack = []
+callStack = []
+dataStack = []
 labels = {}
 
 # HELP FUNCTIONS FOR INSTRUCTION FUNCTIONS
@@ -23,31 +25,40 @@ def nothing(args):
 def getFrameAndName(var):
     return var["value"][0:2],var["value"][3:]
 
+def frameExists(frame):
+    if not frame in frames:
+        print("{}: Frame doesn't exists".format(currentInstIndex),file=sys.stderr)
+        exit(55)
+
+def varExistsInFrame(frame,name):
+    frameExists(frame)
+    if not name in frames[frame]:
+        print("{}: Undefiend variable".format(currentInstIndex),file=sys.stderr)
+        exit(54)
+
 def getVarValue(var):
     frame,name = getFrameAndName(var)
-    if not name in frames[frame]:
-        exit(54)
+    varExistsInFrame(frame,name)
+
     value = frames[frame][name]["value"]
-    if not value:
+    if value == None:
+        print("{}: Trying to get value from uninicialzated variable".format(currentInstIndex),file=sys.stderr)
         exit(56)
     return value
 
 def getVarType(var):
     frame,name = getFrameAndName(var)
-    if not name in frames[frame]:
-        exit(54)
+    varExistsInFrame(frame,name)
     return frames[frame][name]["type"]
 
 def setVarValue(var,value):
     frame,name = getFrameAndName(var)
-    if not name in frames[frame]:
-        exit(54)
+    varExistsInFrame(frame,name)
     frames[frame][name]["value"] = value
 
 def setVarType(var,varType):
     frame,name = getFrameAndName(var)
-    if not name in frames[frame]:
-        exit(54)
+    varExistsInFrame(frame,name)
     frames[frame][name]["type"] = varType
 
 def getVal(arg):
@@ -55,11 +66,19 @@ def getVal(arg):
         return getVarValue(arg)
     else:
         return arg["value"]
+
 def getType(arg):
     if arg["type"] == "var":
         return getVarType(arg)
     else:
         return arg["type"]
+        
+def getLabel(var):
+    if not var["value"] in labels:
+        print("{}: Undefiend label".format(currentInstIndex),file=sys.stderr)
+        exit(52)
+    
+    return var["value"]
 
 # INSTRUCTION FUNCTIONS 
 def move(args):
@@ -68,56 +87,386 @@ def move(args):
 
 def defvar(args):
     frame,name = getFrameAndName(args[0])
-    if name in frames[frame] :
+    if name in frames[frame]:
+        print("{}: Redefinition of variable".format(currentInstIndex),file=sys.stderr)
         exit(52)
 
     frames[frame][name] = {"value":None,"type":"None"}
 
 def write(args):
-        print(getVal(args[0]),end="")
+        if(getType(args[0]) != "nil"):
+            print(getVal(args[0]),end="")
+        else:
+            print("",end="")
 
 def concat(args):
     if (getType(args[1]) != "string" or getType(args[2]) != "string"):
+        print("{}: CONCAT variable types missmatch".format(currentInstIndex),file=sys.stderr)
         exit(53)
     setVarValue(args[0],getVal(args[1])+getVal(args[2]))   
 
+def jumpifeq(args):
+    global currentInstIndex
+    if((getType(args[1]) == "nil") ^ (getType(args[2]) == "nil")):
+        return
+
+    if(getType(args[1]) != getType(args[2])):
+            print("{}: JUMPIFEQ not same types of variables".format(currentInstIndex),file=sys.stderr)
+            exit(53)
+
+    if(getVal(args[1]) == getVal(args[2])):
+        currentInstIndex = labels[getLabel(args[0])]
+
+
+def jumpifneq(args):
+    global currentInstIndex
+    if((getType(args[1]) == "nil") ^ (getType(args[2]) == "nil")):
+        currentInstIndex = labels[getLabel(args[0])]
+        return
+    if(getType(args[1]) != getType(args[2])):
+            print("{}: JUMPIFNEQ not same types of variables 1:{} 2:{}".format(currentInstIndex,getVal(args[1]),getType(args[2])),file=sys.stderr)
+            exit(53)
+
+    if(getVal(args[1]) != getVal(args[2])):
+        currentInstIndex = labels[getLabel(args[0])]
+
+def jump(args):
+    global currentInstIndex
+    currentInstIndex = labels[getLabel(args[0])]
+
+def createframe(args):
+    frames["TF"] = {}
+
+def pushframe(args):
+    frameExists("TF")
+    framesStack.append(frames["TF"])
+    frames.pop("TF")
+    frames["LF"] = framesStack[len(framesStack)-1]
+
+def popframe(args):
+    frameExists("LF")
+    frames["TF"] = frames["LF"]
+    framesStack.pop()
+    if len(framesStack) > 0:
+        frames["LF"] = framesStack[len(framesStack)-1]
+    else:
+        frames.pop("LF")
+
+def call(args):
+    global currentInstIndex,callStack
+    callStack.append(currentInstIndex)
+    currentInstIndex = labels[getLabel(args[0])]
+
+def ret(args):
+    global currentInstIndex,callStack
+    if len(callStack) == 0:
+        print("{}: WE ARE DOOMED".format(currentInstIndex),file=sys.stderr)
+        exit(56)
+    currentInstIndex = callStack.pop()
+
+def pushs(args):
+    global dataStack
+    dataStack.append({"value":getVal(args[0]),"type":getType(args[0])})
+
+
+def pops(args):
+    global dataStack
+    if len(dataStack) == 0:
+        print("{}: Data stack is empty cannot pop value".format(currentInstIndex),file=sys.stderr)
+        exit(56)
+
+    var = dataStack.pop()
+    setVarValue(args[0],var["value"])
+    setVarType(args[0],var["type"])
+
+def add(args):
+    if (not(getType(args[1]) == "int" and getType(args[2]) == "int") and not(getType(args[1]) == "float" and getType(args[2]) == "float")):
+        print("{}: ADD variable types missmatch".format(currentInstIndex),file=sys.stderr)
+        exit(53)
+
+    setVarType(args[0],getType(args[1]))   
+    setVarValue(args[0],getVal(args[1]) + getVal(args[2]))   
+
+def sub(args):
+    if (not(getType(args[1]) == "int" and getType(args[2]) == "int") and not(getType(args[1]) == "float" and getType(args[2]) == "float")):
+        print("{}: SUB variable types missmatch".format(currentInstIndex),file=sys.stderr)
+        exit(53)
+
+    setVarType(args[0],getType(args[1]))  
+    setVarValue(args[0],getVal(args[1]) - getVal(args[2]))
+
+def mul(args):
+    if (not(getType(args[1]) == "int" and getType(args[2]) == "int") and not(getType(args[1]) == "float" and getType(args[2]) == "float")):
+        print("{}: MUL variable types missmatch".format(currentInstIndex),file=sys.stderr)
+        exit(53)
+    
+    setVarType(args[0],getType(args[1]))  
+    setVarValue(args[0],getVal(args[1]) * getVal(args[2]))  
+
+def idiv(args):
+    if (not(getType(args[1]) == "int" and getType(args[2]) == "int") and not(getType(args[1]) == "float" and getType(args[2]) == "float")):
+        print("{}: IDIV variable types missmatch".format(currentInstIndex),file=sys.stderr)
+        exit(53)
+    
+    setVarType(args[0],getType(args[1]))  
+    setVarValue(args[0],getVal(args[1]) // getVal(args[2]))   
+
+def div(args):
+    if (getType(args[1]) != "float" or getType(args[2]) != "float"):
+        print("{}: FLOAT variable types missmatch".format(currentInstIndex),file=sys.stderr)
+        exit(53)
+
+    setVarType(args[0],"float") 
+    setVarValue(args[0],getVal(args[1]) / getVal(args[2]))   
+
+def lt(args):
+    if(getType(args[1]) == "nil" or getType(args[2]) == "nil" or getType(args[1]) != getType(args[2])):
+        print("{}: LT not same types of variables".format(currentInstIndex),file=sys.stderr)
+        exit(53)
+
+    setVarType(args[0],"bool")
+    if getVal(args[1]) < getVal(args[2]):
+        setVarValue(args[0],True)
+    else:
+        setVarValue(args[0],False)
+
+def gt(args):
+    if(getType(args[1]) == "nil" or getType(args[2]) == "nil" or getType(args[1]) != getType(args[2])):
+        print("{}: GT not same types of variables".format(currentInstIndex),file=sys.stderr)
+        exit(53)
+
+    setVarType(args[0],"bool")
+    if getVal(args[1]) > getVal(args[2]):
+        setVarValue(args[0],True)
+    else:
+        setVarValue(args[0],False)
+
+def eq(args):
+    if((getType(args[1]) == "nil") ^ (getType(args[2]) == "nil")):
+        setVarType(args[0],"bool")
+        setVarValue(args[0],False)
+        return
+
+    if(getType(args[1]) != getType(args[2])):
+        print("{}: EQ not same types of variables".format(currentInstIndex),file=sys.stderr)
+        # breakInterpret("")
+        exit(53)
+    
+    setVarType(args[0],"bool")
+    if getVal(args[1]) == getVal(args[2]):
+        setVarValue(args[0],True)
+    else:
+        setVarValue(args[0],False)
+
+def logAnd(args):
+    if (getType(args[1]) != "bool" or getType(args[2]) != "bool"):
+        print("{}: AND not bool variables".format(currentInstIndex),file=sys.stderr)
+        exit(53)
+
+    setVarType(args[0],"bool")
+    setVarValue(args[0],getVal(args[1]) and getVal(args[2]))
+
+def logOr(args):
+    if (getType(args[1]) != "bool" or getType(args[2]) != "bool"):
+        print("{}: OR not bool variables".format(currentInstIndex),file=sys.stderr)
+        exit(53)
+
+    setVarType(args[0],"bool")
+    setVarValue(args[0],getVal(args[1]) or getVal(args[2]))
+
+def logNot(args):
+    if (getType(args[1]) != "bool"):
+        print("{}: NOT not bool variable".format(currentInstIndex),file=sys.stderr)
+        exit(53)
+
+    setVarType(args[0],"bool")
+    setVarValue(args[0],not getVal(args[1]))
+
+def int2char(args):
+    if getType(args[1]) != "int":
+        print("{}: INT2CHAR variable type missmatch".format(currentInstIndex),file=sys.stderr)
+        exit(53)
+    try:
+        setVarValue(args[0],chr(getVal(args[1])))
+        setVarType(args[0],"string")
+    except:
+        print("{}: INT2CHAR chr function failed".format(currentInstIndex),file=sys.stderr)
+        exit(58)
+
+def str2int(args):
+    if getType(args[1]) != "string" or getType(args[2]) != "int":
+        print("{}: STR2INT variable types missmatch".format(currentInstIndex),file=sys.stderr)
+        exit(53)
+    string = getVal(args[1])
+    index = getVal(args[2])
+    if index < 0:
+        exit(58)
+        print("{}: INT2CHAR index is < 0".format(currentInstIndex),file=sys.stderr)
+    try:
+        setVarValue(args[0],ord(string[index]))
+        setVarType(args[0],"int")
+    except:
+        print("{}: INT2CHAR ord function failed , or index is out of boundries".format(currentInstIndex),file=sys.stderr)
+        exit(58)
+
+def read(args):
+    val = input()
+    varType = getVal(args[1])
+    setType = ""
+    setValue = ""
+    if varType == "bool":
+        setType = "bool"
+        if val == "true":
+            setValue = True
+        else:
+            setValue = False
+    elif varType == "int":
+        setType = "bool"
+        try:
+            setValue = int(val)
+        except:
+            setType = "nil"
+            setValue = "nil"
+    elif varType == "string":
+        setType = "string"
+        setValue = val
+    elif varType == "float":
+        setType = "float"
+        try:
+            setValue = float.fromhex(val)
+        except:
+            setType = "nil"
+            setValue = "nil"
+    
+    setVarType(args[0],setType)
+    setVarValue(args[0],setValue)
+
+
+def strlen(args):
+    if (getType(args[1]) != "string"):
+        print("{}: STRLEN variable type missmatch".format(currentInstIndex),file=sys.stderr)
+        exit(53)
+    setVarValue(args[0],len(getVal(args[1])))
+    setVarType(args[0],"int")
+
+def getchar(args):
+    if getType(args[1]) != "string" or getType(args[2]) != "int":
+        print("{}: GETCHAR variable types missmatch".format(currentInstIndex),file=sys.stderr)
+        exit(53)
+    string = getVal(args[1])
+    index = getVal(args[2])
+    if index < 0:
+        exit(58)
+        print("{}: GETCHAR index is < 0".format(currentInstIndex),file=sys.stderr)
+    try:
+        setVarValue(args[0],string[index])
+        setVarType(args[0],"string")
+    except:
+        print("{}: GETCHAR index is out of boundries".format(currentInstIndex),file=sys.stderr)
+        exit(58)
+
+def setchar(args):
+    if getType(args[0]) != "string" or getType(args[1]) != "int" or getType(args[2]) != "string":
+        print("{}: SETCHAR variable types missmatch".format(currentInstIndex),file=sys.stderr)
+        exit(53)
+    index = getVal(args[1])
+    if index < 0:
+        exit(58)
+        print("{}: SETCHAR index is < 0".format(currentInstIndex),file=sys.stderr)
+    try:
+        val = getVal(args[0])
+        val[index] = getVal(args[2])[0]
+        setVarValue(args[0],val)
+    except:
+        print("{}: SETCHAR index is out of boundries".format(currentInstIndex),file=sys.stderr)
+        exit(58)
+
+def typeFunc(args):
+    val = getVal(args[1])
+    if args[1]["type"] == "var":
+        frame,name = getFrameAndName(args[1])
+        if not name in frames[frame]:
+            val = ""
+
+    setVarType(args[0],"type")
+    setVarValue(args[0],val)
+
+def exitInterpret(args):
+    if (getType(args[0]) != "int"):
+        print("{}: EXIT variable types missmatch".format(currentInstIndex),file=sys.stderr)
+        exit(53)
+    val = getVal(args[0])
+    if val < 0 or val > 49:
+        print("{}: EXIT value out of <0,49>".format(currentInstIndex),file=sys.stderr)
+        exit(57)
+    exit(val)
+
+def dprint(args):
+    print(getVal(args[0]),file=sys.stderr)
+
+def breakInterpret(args):
+    print("Current instruction executed index: {}".format(currentInstIndex),file=sys.stderr)
+    print(frames,file=sys.stderr)
+
+def float2int(args):
+    if getType(args[1]) != "float":
+        print("{}: FLOAT2INT variable type missmatch".format(currentInstIndex),file=sys.stderr)
+        exit(53)
+    try:
+        setVarValue(args[0],int(getVal(args[1])))
+        setVarType(args[0],"float")
+    except:
+        print("{}: FLOAT2INT cannot do operation".format(currentInstIndex),file=sys.stderr)
+        exit(58)
+
+def int2float(args):
+    if getType(args[1]) != "int":
+        print("{}: INT2FLOAT variable type missmatch".format(currentInstIndex),file=sys.stderr)
+        exit(53)
+    try:
+        setVarValue(args[0],float(getVal(args[1])))
+        setVarType(args[0],"int")
+    except:
+        print("{}: INT2FLOAT cannot do operation".format(currentInstIndex),file=sys.stderr)
+        exit(58)
 
 instructions = {
     "MOVE" : {"args":["var", "symb"],"func":move},
-    "CREATEFRAME" : {"args":[],"func":nothing},
-    "PUSHFRAME" : {"args":[],"func":nothing},
-    "POPFRAME" : {"args":[],"func":nothing},
+    "CREATEFRAME" : {"args":[],"func":createframe},
+    "PUSHFRAME" : {"args":[],"func":pushframe},
+    "POPFRAME" : {"args":[],"func":popframe},
     "DEFVAR" : {"args":["var"],"func":defvar},
-    "CALL" : {"args":["label"],"func":nothing},
-    "RETURN" : {"args":[],"func":nothing},
-    "PUSHS"  : {"args":["symb"],"func":nothing},
-    "POPS"  : {"args":["var"],"func":nothing},
-    "ADD"  : {"args":["var", "symb", "symb"],"func":nothing},
-    "SUB"  : {"args":["var", "symb", "symb"],"func":nothing},
-    "MUL"  : {"args":["var", "symb", "symb"],"func":nothing},
-    "IDIV"  : {"args":["var", "symb", "symb"],"func":nothing},
-    "LT"  : {"args":["var", "symb", "symb"],"func":nothing},
-    "GT"  : {"args":["var", "symb", "symb"],"func":nothing},
-    "EQ"  : {"args":["var", "symb", "symb"],"func":nothing},
-    "AND"  : {"args":["var", "symb", "symb"],"func":nothing},
-    "OR"  : {"args":["var", "symb", "symb"],"func":nothing},
-    "NOT"  : {"args":["var", "symb"],"func":nothing},
-    "INT2CHAR"  : {"args":["var", "symb"],"func":nothing},
-    "STRI2INT"  : {"args":["var", "symb", "symb"],"func":nothing},
-    "READ"  :  {"args":["var", "type"],"func":nothing},
+    "CALL" : {"args":["label"],"func":call},
+    "RETURN" : {"args":[],"func":ret},
+    "PUSHS"  : {"args":["symb"],"func":pushs},
+    "POPS"  : {"args":["var"],"func":pops},
+    "ADD"  : {"args":["var", "symb", "symb"],"func":add},
+    "SUB"  : {"args":["var", "symb", "symb"],"func":sub},
+    "MUL"  : {"args":["var", "symb", "symb"],"func":mul},
+    "IDIV"  : {"args":["var", "symb", "symb"],"func":idiv},
+    "LT"  : {"args":["var", "symb", "symb"],"func":lt},
+    "GT"  : {"args":["var", "symb", "symb"],"func":gt},
+    "EQ"  : {"args":["var", "symb", "symb"],"func":eq},
+    "AND"  : {"args":["var", "symb", "symb"],"func":logAnd},
+    "OR"  : {"args":["var", "symb", "symb"],"func":logOr},
+    "NOT"  : {"args":["var", "symb"],"func":logNot},
+    "INT2CHAR"  : {"args":["var", "symb"],"func":int2char},
+    "STRI2INT"  : {"args":["var", "symb", "symb"],"func":str2int},
+    "READ"  :  {"args":["var", "type"],"func":read},
     "WRITE" : {"args":["symb"],"func":write},
     "CONCAT"  : {"args":["var", "symb", "symb"],"func":concat},
-    "STRLEN"  : {"args":["var", "symb"],"func":nothing},
-    "GETCHAR"  : {"args":["var", "symb", "symb"],"func":nothing},
-    "SETCHAR"  : {"args":["var", "symb", "symb"],"func":nothing},
-    "TYPE"  : {"args":["var", "symb"],"func":nothing},
+    "STRLEN"  : {"args":["var", "symb"],"func":strlen},
+    "GETCHAR"  : {"args":["var", "symb", "symb"],"func":getchar},
+    "SETCHAR"  : {"args":["var", "symb", "symb"],"func":setchar},
+    "TYPE"  : {"args":["var", "symb"],"func":typeFunc},
     "LABEL" : {"args":["label"],"func":nothing},
-    "JUMP" : {"args":["label"],"func":nothing},
-    "JUMPIFEQ" : {"args":["label", "symb", "symb"],"func":nothing},
-    "JUMPIFNEQ" : {"args":["label", "symb", "symb"],"func":nothing},
-    "EXIT" : {"args":["symb"],"func":nothing},
-    "DPRINT" : {"args":["symb"],"func":nothing},
-    "BREAK" :  {"args":[],"func":nothing},
+    "JUMP" : {"args":["label"],"func":jump},
+    "JUMPIFEQ" : {"args":["label", "symb", "symb"],"func":jumpifeq},
+    "JUMPIFNEQ" : {"args":["label", "symb", "symb"],"func":jumpifneq},
+    "EXIT" : {"args":["symb"],"func":exitInterpret},
+    "DPRINT" : {"args":["symb"],"func":dprint},
+    "BREAK" :  {"args":[],"func":breakInterpret},
+    # STACK OPERATIONS
     "CLEARS": {"args":[],"func":nothing},
     "ADDS": {"args":[],"func":nothing},
     "SUBS": {"args":[],"func":nothing},
@@ -133,7 +482,12 @@ instructions = {
     "STRI2INTS ": {"args":[],"func":nothing},
     "JUMPIFEQS": {"args":[],"func":nothing},
     "JUMPIFNEQS": {"args":[],"func":nothing},
+    # FLOAT OPERATIONS
+    "INT2FLOAT": {"args":["var", "symb"],"func":int2float},
+    "FLOAT2INT": {"args":["var", "symb"],"func":float2int},
+    "DIV"  : {"args":["var", "symb", "symb"],"func":div},
 }
+
 
 
 sourceFile = sys.stdin
@@ -307,10 +661,16 @@ def decodeArgumentValue(argType,value):
         decodedValue = re.sub('\\\\[0-9]{3}', escapeSeqToAscii, value) # replace all \ sequences to ascii
     elif(argType == "int"):
         decodedValue = int(value)
+    elif(argType == "bool"):
+        if value == "true":
+            decodedValue = True
+        else:
+            decodedValue = False
     elif(argType == "float"):
         try:
             decodedValue = float.fromhex(value)
         except:
+            print("{}: bad notation of float".format(currentInstIndex),file=sys.stderr)
             exit(32)
 
     return decodedValue
@@ -319,16 +679,13 @@ def interpreteCode(tree,lastIndex):
     global currentInstIndex
     while currentInstIndex <= lastIndex:
         instructions[tree[currentInstIndex]["instruction"]]["func"](tree[currentInstIndex]["args"])
-        currentInstIndex +=1
+        currentInstIndex += 1
 
 def main():
     processArguments()
     tree = checkXMLandSave()
     lastInstruction = int(list(tree)[-1])
     interpreteCode(tree,lastInstruction)
-    print("============================")
-    print(labels)
-    print(frames)
 
 if __name__ == '__main__':
     main()
