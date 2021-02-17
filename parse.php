@@ -5,7 +5,7 @@
 # Description: Parser for IPPcode21
 # Name: parse.php
 # Version: 1.0
-# PHP 
+# PHP 7.4
 # ----------------------------
 ini_set('display_errors', 'stderr');
 
@@ -46,6 +46,24 @@ $instructionsArgs = array(
     "EXIT" => array("symb"),
     "DPRINT" => array("symb"),
     "BREAK" => array(),
+    "CLEARS" => array(),
+    "ADDS" => array(),
+    "SUBS" => array(),
+    "MULS" => array(),
+    "IDIVS" => array(),
+    "LTS" => array(),
+    "GTS" => array(),
+    "EQS" => array(),
+    "ANDS" => array(),
+    "ORS" => array(),
+    "NOTS" => array(),
+    "INT2CHARS" => array(),
+    "STRI2INTS " => array(),
+    "JUMPIFEQS" => array("label"),
+    "JUMPIFNEQS" => array("label"),
+    "DIV" => array("var", "symb", "symb"),
+    "INT2FLOAT" => array("var", "symb"),
+    "FLOAT2INT" => array("var", "symb"),
 
 );
 
@@ -64,10 +82,9 @@ $longOptions = ["help", "stats", "loc", "comments", "labels", "jumps", "fwjumps"
 
 # ARGUMENT CHECKS
 if (array_key_exists("help", $options)) {
-    if ($argc === 2) {
+    if ($argc === 2)
         printHelp($argv[0]);
-        exit(0);
-    } else
+    else
         exit(10);
 }
 
@@ -95,8 +112,11 @@ do {
 } while (!feof(STDIN) && preg_match("/^\s*$|^\s*#.*$/", $line));
 
 $line = preg_replace('/#.*$/', '', $line);
-if (strtolower(trim($line)) !== ".ippcode21")
+if (strtolower(trim($line)) !== ".ippcode21") {
+    fprintf(STDERR, "Header .IPPcode21 nout found\n");
     exit(21);
+}
+
 
 # XML GENERATION | SYN and LEN checks
 $xmlOut = new DOMDocument('1.0', "UTF-8");
@@ -138,8 +158,6 @@ foreach ($jumpInstructions as $key => $jump) {
         $backJumpsCount++;
         continue;
     }
-    if ($key == $labels[$jump[1]])
-        exit(99);
 
     if ($key < $labels[$jump[1]])
         $fwJumpsCount++;
@@ -233,11 +251,15 @@ function processLine($instruction, $arguments)
 {
     global $root, $order, $labels, $jumpCount, $labels, $jumpInstructions, $xmlOut, $instructionsArgs;
 
-    if (!array_key_exists($instruction, $instructionsArgs))
+    if (!array_key_exists($instruction, $instructionsArgs)) {
+        fprintf(STDERR, "$order: LEX ERROR in name of instruction\n");
         exit(22);
+    }
 
-    if (count($instructionsArgs[$instruction]) != (count($arguments)))
+    if (count($instructionsArgs[$instruction]) != (count($arguments))) {
+        fprintf(STDERR, "$order: $instruction , missmatch in number of arguments\n");
         exit(23);
+    }
 
     if ($instruction === "LABEL")
         if (count($arguments) > 0)
@@ -282,9 +304,14 @@ function parseArgument($arg, $expectedType)
                     exit(23);
                 break;
             }
-            if (preg_match('/^bool@(^true$|^false$)/', $arg)) {
+            if (preg_match('/^bool@(true|false)$/', $arg)) {
                 $type = "bool";
                 $value = substr($arg, 5, strlen($arg));
+                break;
+            }
+            if (preg_match('/^float@0x([a-f]|[\d])(\.[\d|a-f]*)?p(\+|-)?[\d]*$/i', $arg)) {
+                $type = "float";
+                $value = substr($arg, 6, strlen($arg));
                 break;
             }
             if (preg_match('/^nil@nil/', $arg)) {
@@ -298,13 +325,15 @@ function parseArgument($arg, $expectedType)
                 $type = "var";
                 break;
             }
+            fprintf(STDERR, "Expected type VAR or SYMBOL, got input: $arg\n");
             exit(23);
 
         case "type":
-            if (preg_match('/^int$|^bool$|^string$|^nil$/', $arg)) {
+            if (preg_match('/^int$|^bool$|^string$|^nil$|^float$/', $arg)) {
                 $type = "type";
                 break;
             }
+            fprintf(STDERR, "Expected type TYPE, got input: $arg\n");
             exit(23);
 
         case "label":
@@ -312,10 +341,11 @@ function parseArgument($arg, $expectedType)
                 $type = "label";
                 break;
             }
+            fprintf(STDERR, "Expected type LABEL, got input: $arg\n");
             exit(23);
     }
 
-    $value =  preg_replace(["/&/", "/>/", "/</", "/\"\"/", "\""], ["&amp;", "&gt;", "&lt;", "&apos;", "&apos;"], $value);
+    $value =  preg_replace(["/&/", "/>/", "/</", '/\'/', "/\"/"], ["&amp;", "&gt;", "&lt;", "&apos;", "&quot;"], $value);
     return [$type, $value];
 }
 
@@ -349,4 +379,5 @@ function printHelp($scriptName)
     fprintf(STDERR, "       ./parse.php --stats=file1 --comment --loc --badjumps \n");
     fprintf(STDERR, "       ./parse.php --stats=file1 --loc --stats=file2 --comments \n");
     fprintf(STDERR, "==========================================================\n");
+    exit(0);
 }

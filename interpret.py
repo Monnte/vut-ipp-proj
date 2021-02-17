@@ -148,6 +148,7 @@ def concat(args):
         print("{}: CONCAT variable types missmatch".format(
             currentInstIndex), file=sys.stderr)
         exit(53)
+    setVarType(args[0], "string")
     setVarValue(args[0], getVal(args[1])+getVal(args[2]))
 
 
@@ -291,7 +292,8 @@ def div(args):
         exit(57)
 
     if (getType(args[1]) != "float" or getType(args[2]) != "float"):
-        print("{}: FLOAT variable types missmatch".format(
+        breakInterpret("")
+        print("{}: DIV variable types missmatch".format(
             currentInstIndex), file=sys.stderr)
         exit(53)
 
@@ -409,7 +411,7 @@ def str2int(args):
 
 
 def read(args):
-    val = inputFile.read()
+    val = inputFile.readline().strip()
     varType = getVal(args[1])
     setType = ""
     setValue = ""
@@ -491,8 +493,9 @@ def setchar(args):
 
 
 def typeFunc(args):
-    val = getVal(args[1])
-    if args[1]["type"] == "var":
+    varType = getType(args[1])
+    val = varType
+    if varType == "var":
         frame, name = getFrameAndName(args[1])
         if not name in frames[frame]:
             val = ""
@@ -534,7 +537,7 @@ def float2int(args):
         exit(53)
     try:
         setVarValue(args[0], int(getVal(args[1])))
-        setVarType(args[0], "float")
+        setVarType(args[0], "int")
     except:
         print("{}: FLOAT2INT cannot do operation".format(
             currentInstIndex), file=sys.stderr)
@@ -548,7 +551,7 @@ def int2float(args):
         exit(53)
     try:
         setVarValue(args[0], float(getVal(args[1])))
-        setVarType(args[0], "int")
+        setVarType(args[0], "float")
     except:
         print("{}: INT2FLOAT cannot do operation".format(
             currentInstIndex), file=sys.stderr)
@@ -684,7 +687,6 @@ def eqs(args):
     if(getType(arg1) != getType(arg2)):
         print("{}: EQS not same types of variables".format(
             currentInstIndex), file=sys.stderr)
-        # breakInterpret("")
         exit(53)
 
     if getVal(arg1) == getVal(arg2):
