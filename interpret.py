@@ -70,17 +70,14 @@ def getVarValue(var):
     varExistsInFrame(frame, name)
 
     value = frames[frame][name]["value"]
-    if value == None:
-        print("{}: Trying to get value from uninicialzated variable".format(
-            currentInstIndex), file=sys.stderr)
-        exit(56)
     return value
 
 
 def getVarType(var):
     frame, name = getFrameAndName(var)
     varExistsInFrame(frame, name)
-    return frames[frame][name]["type"]
+    varType = frames[frame][name]["type"]
+    return varType
 
 
 def setVarValue(var, value):
@@ -97,13 +94,23 @@ def setVarType(var, varType):
 
 def getVal(arg):
     if arg["type"] == "var":
-        return getVarValue(arg)
+        value = getVarValue(arg)
+        if value == None:
+            print("{}: Trying to get value from uninicialzated variable".format(
+                currentInstIndex), file=sys.stderr)
+            exit(56)
+        return value
     else:
         return arg["value"]
 
 
 def getType(arg):
     if arg["type"] == "var":
+        varType = getVarType(arg)
+        if varType == None:
+            print("{}: Trying to get value from uninicialzated variable".format(
+                currentInstIndex), file=sys.stderr)
+            exit(56)
         return getVarType(arg)
     else:
         return arg["type"]
@@ -114,7 +121,7 @@ def getLabel(var):
         print("{}: Undefiend label".format(currentInstIndex), file=sys.stderr)
         exit(52)
 
-    return var["value"]
+    return labels[var["value"]] - 1
 
 # INSTRUCTION FUNCTIONS
 
@@ -126,19 +133,23 @@ def move(args):
 
 def defvar(args):
     frame, name = getFrameAndName(args[0])
+    frameExists(frame)
     if name in frames[frame]:
         print("{}: Redefinition of variable".format(
             currentInstIndex), file=sys.stderr)
         exit(52)
 
-    frames[frame][name] = {"value": None, "type": "None"}
+    frames[frame][name] = {"value": None, "type": None}
 
 
 def write(args):
-    if(getType(args[0]) == "nil"):
+    valType = getType(args[0])
+    if(valType == "nil"):
         print("", end="")
-    elif(getType(args[0]) == "float"):
+    elif(valType == "float"):
         print(float.hex(getVal(args[0])), end="")
+    elif(valType == "bool"):
+        print(str(getVal(args[0])).lower(), end="")
     else:
         print(getVal(args[0]), end="")
 
@@ -162,27 +173,29 @@ def jumpifeq(args):
             currentInstIndex), file=sys.stderr)
         exit(53)
 
+    label = getLabel(args[0])
     if(getVal(args[1]) == getVal(args[2])):
-        currentInstIndex = labels[getLabel(args[0])]
+        currentInstIndex = label
 
 
 def jumpifneq(args):
     global currentInstIndex
     if((getType(args[1]) == "nil") ^ (getType(args[2]) == "nil")):
-        currentInstIndex = labels[getLabel(args[0])]
+        currentInstIndex = getLabel(args[0])
         return
     if(getType(args[1]) != getType(args[2])):
         print("{}: JUMPIFNEQ not same types of variables 1:{} 2:{}".format(
             currentInstIndex, getVal(args[1]), getType(args[2])), file=sys.stderr)
         exit(53)
 
+    label = getLabel(args[0])
     if(getVal(args[1]) != getVal(args[2])):
-        currentInstIndex = labels[getLabel(args[0])]
+        currentInstIndex = label
 
 
 def jump(args):
     global currentInstIndex
-    currentInstIndex = labels[getLabel(args[0])]
+    currentInstIndex = getLabel(args[0])
 
 
 def createframe(args):
@@ -211,7 +224,7 @@ def popframe(args):
 def call(args):
     global currentInstIndex, callStack
     callStack.append(currentInstIndex)
-    currentInstIndex = labels[getLabel(args[0])]
+    currentInstIndex = getLabel(args[0])
 
 
 def ret(args):
@@ -221,27 +234,6 @@ def ret(args):
             currentInstIndex), file=sys.stderr)
         exit(56)
     currentInstIndex = callStack.pop()
-
-
-def pushs(args):
-    global dataStack, dataStackCount, dataStackMaxCount
-    dataStack.append({"value": getVal(args[0]), "type": getType(args[0])})
-    dataStackCount += 1
-    if dataStackCount > dataStackMaxCount:
-        dataStackMaxCount = dataStackCount
-
-
-def pops(args):
-    global dataStack, dataStackCount
-    if len(dataStack) == 0:
-        print("{}: Data stack is empty cannot pop value".format(
-            currentInstIndex), file=sys.stderr)
-        exit(56)
-
-    dataStackCount -= 1
-    var = dataStack.pop()
-    setVarValue(args[0], var["value"])
-    setVarType(args[0], var["type"])
 
 
 def add(args):
@@ -336,7 +328,6 @@ def eq(args):
     if(getType(args[1]) != getType(args[2])):
         print("{}: EQ not same types of variables".format(
             currentInstIndex), file=sys.stderr)
-        # breakInterpret("")
         exit(53)
 
     setVarType(args[0], "bool")
@@ -381,13 +372,16 @@ def int2char(args):
         print("{}: INT2CHAR variable type missmatch".format(
             currentInstIndex), file=sys.stderr)
         exit(53)
+    val = getVal(args[1])
     try:
-        setVarValue(args[0], chr(getVal(args[1])))
-        setVarType(args[0], "string")
+        val = chr(val)
     except:
         print("{}: INT2CHAR chr function failed".format(
             currentInstIndex), file=sys.stderr)
         exit(58)
+
+    setVarValue(args[0], val)
+    setVarType(args[0], "string")
 
 
 def str2int(args):
@@ -398,31 +392,41 @@ def str2int(args):
     string = getVal(args[1])
     index = getVal(args[2])
     if index < 0:
-        exit(58)
         print("{}: STR2INT index is < 0".format(
             currentInstIndex), file=sys.stderr)
+        exit(58)
     try:
-        setVarValue(args[0], ord(string[index]))
-        setVarType(args[0], "int")
+        val = ord(string[index])
     except:
         print("{}: STR2INT ord function failed , or index is out of boundries".format(
             currentInstIndex), file=sys.stderr)
         exit(58)
 
+    setVarValue(args[0], val)
+    setVarType(args[0], "int")
+
 
 def read(args):
-    val = inputFile.readline().strip()
+    val = inputFile.readline()
     varType = getVal(args[1])
-    setType = ""
-    setValue = ""
+    setType = "nil"
+    setValue = "nil"
+
+    if len(val) == 0:
+        setVarType(args[0], setType)
+        setVarValue(args[0], setValue)
+        return
+
+    val = val.rstrip("\n")
+
     if varType == "bool":
         setType = "bool"
-        if val == "true":
+        if val.lower() == "true":
             setValue = True
         else:
             setValue = False
     elif varType == "int":
-        setType = "bool"
+        setType = "int"
         try:
             setValue = int(val)
         except:
@@ -464,12 +468,14 @@ def getchar(args):
         print("{}: GETCHAR index is < 0".format(
             currentInstIndex), file=sys.stderr)
     try:
-        setVarValue(args[0], string[index])
-        setVarType(args[0], "string")
+        value = string[index]
     except:
         print("{}: GETCHAR index is out of boundries".format(
             currentInstIndex), file=sys.stderr)
         exit(58)
+
+    setVarValue(args[0], value)
+    setVarType(args[0], "string")
 
 
 def setchar(args):
@@ -484,7 +490,9 @@ def setchar(args):
             currentInstIndex), file=sys.stderr)
     try:
         val = getVal(args[0])
+        val = list(val)
         val[index] = getVal(args[2])[0]
+        val = ''.join(val)
         setVarValue(args[0], val)
     except:
         print("{}: SETCHAR index is out of boundries".format(
@@ -493,15 +501,20 @@ def setchar(args):
 
 
 def typeFunc(args):
-    varType = getType(args[1])
-    val = varType
+    if args[1]["type"] == "var":
+        varType = getVarType(args[1])
+        if varType == None:
+            varType = ""
+    else:
+        varType = args[1]["type"]
+
     if varType == "var":
         frame, name = getFrameAndName(args[1])
         if not name in frames[frame]:
-            val = ""
+            varType = ""
 
     setVarType(args[0], "string")
-    setVarValue(args[0], val)
+    setVarValue(args[0], varType)
 
 
 def exitInterpret(args):
@@ -535,13 +548,16 @@ def float2int(args):
         print("{}: FLOAT2INT variable type missmatch".format(
             currentInstIndex), file=sys.stderr)
         exit(53)
+    val = getVal(args[1])
     try:
-        setVarValue(args[0], int(getVal(args[1])))
-        setVarType(args[0], "int")
+        val = int(val)
     except:
         print("{}: FLOAT2INT cannot do operation".format(
             currentInstIndex), file=sys.stderr)
         exit(58)
+
+    setVarValue(args[0], val)
+    setVarType(args[0], "int")
 
 
 def int2float(args):
@@ -549,16 +565,20 @@ def int2float(args):
         print("{}: INT2FLOAT variable type missmatch".format(
             currentInstIndex), file=sys.stderr)
         exit(53)
+    val = getVal(args[1])
     try:
-        setVarValue(args[0], float(getVal(args[1])))
-        setVarType(args[0], "float")
+        val = float(val)
     except:
         print("{}: INT2FLOAT cannot do operation".format(
             currentInstIndex), file=sys.stderr)
         exit(58)
 
+    setVarValue(args[0], val)
+    setVarType(args[0], "float")
 
 # STACK FUNCTIONS
+
+
 def getValStack():
     global dataStack, dataStackCount
     if len(dataStack) == 0:
@@ -576,7 +596,29 @@ def setValStack(val, varType):
         dataStackMaxCount = dataStackCount
 
 
+def pushs(args):
+    global dataStack, dataStackCount, dataStackMaxCount
+    dataStack.append({"value": getVal(args[0]), "type": getType(args[0])})
+    dataStackCount += 1
+    if dataStackCount > dataStackMaxCount:
+        dataStackMaxCount = dataStackCount
+
+
+def pops(args):
+    global dataStack, dataStackCount
+    if len(dataStack) == 0:
+        print("{}: Data stack is empty cannot pop value".format(
+            currentInstIndex), file=sys.stderr)
+        exit(56)
+
+    dataStackCount -= 1
+    var = dataStack.pop()
+    setVarValue(args[0], var["value"])
+    setVarType(args[0], var["type"])
+
+
 def clears(args):
+    global dataStack
     dataStack = []
 
 
@@ -736,12 +778,14 @@ def int2chars(args):
         print("{}: INT2CHARS variable type missmatch".format(
             currentInstIndex), file=sys.stderr)
         exit(53)
+    val = getVal(arg1)
     try:
-        setValStack(chr(getVal(arg1)), "string")
+        val = chr(val)
     except:
         print("{}: INT2CHARS chr function failed".format(
             currentInstIndex), file=sys.stderr)
         exit(58)
+    setValStack(val, "string")
 
 
 def str2ints(args):
@@ -755,9 +799,9 @@ def str2ints(args):
     string = getVal(arg1)
     index = getVal(arg2)
     if index < 0:
-        exit(58)
         print("{}: STR2INTS index is < 0".format(
             currentInstIndex), file=sys.stderr)
+        exit(58)
     try:
         setValStack(ord(string[index]), "int")
     except:
@@ -779,8 +823,9 @@ def jumpifeqs(args):
             currentInstIndex), file=sys.stderr)
         exit(53)
 
+    label = getLabel(args[0])
     if(getVal(arg1) == getVal(arg2)):
-        currentInstIndex = labels[getLabel(args[0])]
+        currentInstIndex = label
 
 
 def jumpifneqs(args):
@@ -789,15 +834,16 @@ def jumpifneqs(args):
 
     global currentInstIndex
     if((getType(arg1) == "nil") ^ (getType(arg2) == "nil")):
-        currentInstIndex = labels[getLabel(args[0])]
+        currentInstIndex = getLabel(args[0])
         return
     if(getType(arg1) != getType(arg2)):
         print("{}: JUMPIFNEQS not same types of variables 1:{} 2:{}".format(
-            currentInstIndex, getVal(args[1]), getType(args[2])), file=sys.stderr)
+            currentInstIndex, getVal(arg1), getType(arg2)), file=sys.stderr)
         exit(53)
 
+    label = getLabel(args[0])
     if(getVal(arg1) != getVal(arg2)):
-        currentInstIndex = labels[getLabel(args[0])]
+        currentInstIndex = label
 
 
 instructions = {
@@ -852,7 +898,7 @@ instructions = {
     "ORS": {"args": [], "func": logOrs},
     "NOTS": {"args": [], "func": logNots},
     "INT2CHARS": {"args": [], "func": int2chars},
-    "STRI2INTS ": {"args": [], "func": str2ints},
+    "STRI2INTS": {"args": [], "func": str2ints},
     "JUMPIFEQS": {"args": ["label"], "func": jumpifeqs},
     "JUMPIFNEQS": {"args": ["label"], "func": jumpifneqs},
 
@@ -867,6 +913,7 @@ instructions = {
 
 def checkXMLandSave():
     parseTree = {}
+    orderList = []
     try:
         tree = ET.parse(sourceFile)
         root = tree.getroot()
@@ -897,12 +944,13 @@ def checkXMLandSave():
             exit(32)
 
         order = instruction.attrib["order"]
-        instructionOpcode = instruction.attrib["opcode"]
+        instructionOpcode = instruction.attrib["opcode"].upper()
 
         # Check for duplicit order in instructions or order is below 0 value
-        if order in parseTree or int(order) < 0:
+        if order in orderList or int(order) <= 0:
             exit(32)
 
+        orderList.append(order)
         # Sort arguments to be in right order ( from 1 to max )
         instruction[:] = sorted(instruction, key=lambda child: child.tag)
 
@@ -967,6 +1015,7 @@ def checkXMLandSave():
 # Check if given type is correct to the given value
 # Return: True if types match , false if not
 def argumentTypeCheck(value, expectedType):
+    expectedType = expectedType.lower()
     if(expectedType == "int"):
         if not re.match('^[+-]?[\d]+$', value):
             return False
@@ -977,16 +1026,18 @@ def argumentTypeCheck(value, expectedType):
         if not re.match('^nil$', value):
             return False
     elif(expectedType == "var"):
-        if not re.match('^(GF|TF|LF)@[a-z_\-$&%*!?A-Z][a-z_\-$&%*!?0-9A-Z]*', value):
+        if not re.match('^(GF|TF|LF)@[a-z_\-$&%*!?A-Z][a-z_\-$&%*!?0-9A-Z]*$', value):
             return False
     elif(expectedType == "type"):
         if not re.match('int$|^bool$|^string$|^nil$|^float$', value):
             return False
     elif(expectedType == "label"):
-        if not re.match('(?i)^[a-z_\-$&%*!?][a-z_\-$&%*!?0-9]*', value):
+        if not re.match('(?i)^[a-z_\-$&%*!?][a-z_\-$&%*!?0-9]*$', value):
             return False
     elif(expectedType == "float"):
-        if not re.match('(?i)^0x([a-f]|[\d])(\.[\d|a-f]*)?p(\+|-)?[\d]*$', value):
+        try:
+            float.fromhex(value)
+        except:
             return False
 
     return True
@@ -1034,15 +1085,16 @@ def getMostUsedOperation(tree):
 
 def interpreteCode(tree, lastIndex):
     global currentInstIndex, instCount
-    while currentInstIndex <= lastIndex and not exitBool:
-        instructions[tree[currentInstIndex]["instruction"]
-                     ]["func"](tree[currentInstIndex]["args"])
+    while currentInstIndex <= lastIndex and (not exitBool):
         # STATS COUNTER
         if not re.match('^LABEL$|^DPRINT$|^BREAK$', tree[currentInstIndex]["instruction"]):
             tree[currentInstIndex]["counter"] += 1
             instCount += 1
 
+        instructions[tree[currentInstIndex]["instruction"]
+                     ]["func"](tree[currentInstIndex]["args"])
         currentInstIndex += 1
+
     # Check GF frame for stats inicialized variables
     maxInicializedInFrame(frames["GF"])
     if "TF" in frames:
@@ -1074,6 +1126,7 @@ def processArguments():
     if args.help:
         if len(sys.argv) == 2:
             help()
+            exit(0)
         else:
             exit(10)
 
@@ -1128,18 +1181,31 @@ def writeStatsToFile(statistic, tree):
 
 
 def help():
-    print("HELP", file=sys.stderr)
+    print("Interpreter for IPPcode21, Version 1.0, Author: Peter Zdravecký", file=sys.stderr)
+    print(
+        f"Usage: {sys.argv[0]} [ --source=file | --input=file | --stats ]", file=sys.stderr)
+    print("    --source    | Source file of IPPcode21", file=sys.stderr)
+    print("    --input     | Input file for program to read from", file=sys.stderr)
+    print("    --stats     | Sets the file that the statistics will be written to", file=sys.stderr)
+
+    print("\nTo use these parameters, --stats has to be already set!", file=sys.stderr)
+    print("    --insts     | Count every executed instructionm. (LABEL | DPRTIN | BREAK) not included.", file=sys.stderr)
+    print("    --hot       | Most executed insctrution in program", file=sys.stderr)
+    print("    --vars      | Maximum inicialized vars in one moment in any frame.", file=sys.stderr)
+    print("Statistics are logged in the order that they were written in arguments.", file=sys.stderr)
 
 
 def main():
     global exitValue, statistic
     processArguments()
     tree = checkXMLandSave()
-    lastInstruction = int(list(tree)[-1])
-    interpreteCode(tree, lastInstruction)
+
+    if len(list(tree)) != 0:
+        lastInstruction = int(list(tree)[-1])
+        interpreteCode(tree, lastInstruction)
+
     if statistic != False:
         writeStatsToFile(statistic, tree)
-
     exit(exitValue)
 
 

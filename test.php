@@ -21,10 +21,29 @@ function scanDirRecursive($directory)
 
 function printHelp($name)
 {
-    echo "$name usage...\n";
+    fprintf(STDERR, "Tester for interpret.py and parse.php, Version 1.0, Author: Peter Zdravecký\n");
+    fprintf(STDERR, "==========================================================\n");
+    fprintf(STDERR, "Usage: $name \n [ --help | --directory=dir | --recursive | --parse-script=script | --int-script=script | --parse-only | --int-only | --jexamxml=file | --jexamcfg=file | testliist=file | match=regex ]");
+
+    fprintf(STDERR, "    --directory    | Search directory for tests\n");
+    fprintf(STDERR, "    --recursive    | Search in directory recursivly in subdirectories\n");
+    fprintf(STDERR, "    --parse-script | Path to parse script\n");
+    fprintf(STDERR, "    --int-script   | Path to interpret script\n");
+    fprintf(STDERR, "    --parse-only   | Test only parse script\n");
+    fprintf(STDERR, "    --int-onl      | Test only interpret script\n");
+    fprintf(STDERR, "    --jexamxml     | Path to xml copmarator\n");
+    fprintf(STDERR, "    --jexamcfg     | Path to xml copmarator config\n");
+    fprintf(STDERR, "    --testliist    | File that contain directories to search for tests\n");
+    fprintf(STDERR, "    --match        | Do tests only match regex\n");
+
+
+    fprintf(STDERR, "\nExample usage: \n");
+    fprintf(STDERR, "       ./parse.php --help \n");
+    fprintf(STDERR, "       ./parse.php --directory=tests --parse-only --parse-script=./parse.php \n");
+    fprintf(STDERR, "       ./parse.php --recursive --int-only \n");
+    fprintf(STDERR, "==========================================================\n");
     exit(0);
 }
-
 # ------------------------------------------------
 
 $dirs = [];
@@ -137,7 +156,6 @@ function CheckRetValue($testRc, $retCode)
 function doTest($testSrc, $testIn, $testOut, $testRc)
 {
     global $parseScript, $interpretScript, $diffScript, $parseOnly, $interpretOnly, $tmpFile;
-
     if ($parseOnly) {
         exec("timeout 10s php7.4 $parseScript < $testSrc", $output, $retCode);
     } else if ($interpretOnly) {

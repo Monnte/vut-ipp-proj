@@ -10,7 +10,7 @@
 ini_set('display_errors', 'stderr');
 
 # INSTRUCTION SET
-$instructionsArgs = array(
+$instructionList = array(
     "MOVE" => array("var", "symb"),
     "CREATEFRAME" => array(),
     "PUSHFRAME" => array(),
@@ -113,6 +113,7 @@ do {
 
 $line = preg_replace('/#.*$/', '', $line);
 if (strtolower(trim($line)) !== ".ippcode21") {
+    print($line);
     fprintf(STDERR, "Header .IPPcode21 nout found\n");
     exit(21);
 }
@@ -153,12 +154,6 @@ foreach ($jumpInstructions as $key => $jump) {
         $badJumpsCount++;
         continue;
     }
-    if ($jump[0] === "CALL") {
-        $fwJumpsCount++;
-        $backJumpsCount++;
-        continue;
-    }
-
     if ($key < $labels[$jump[1]])
         $fwJumpsCount++;
     else
@@ -249,14 +244,14 @@ function printStatsToFile($file, $stats)
 # PROCESS INSTRUCTION NAME AND ARGUMENTS
 function processLine($instruction, $arguments)
 {
-    global $root, $order, $labels, $jumpCount, $labels, $jumpInstructions, $xmlOut, $instructionsArgs;
+    global $root, $order, $labels, $jumpCount, $labels, $jumpInstructions, $xmlOut, $instructionList;
 
-    if (!array_key_exists($instruction, $instructionsArgs)) {
+    if (!array_key_exists($instruction, $instructionList)) {
         fprintf(STDERR, "$order: LEX ERROR in name of instruction\n");
         exit(22);
     }
 
-    if (count($instructionsArgs[$instruction]) != (count($arguments))) {
+    if (count($instructionList[$instruction]) != (count($arguments))) {
         fprintf(STDERR, "$order: $instruction , missmatch in number of arguments\n");
         exit(23);
     }
@@ -265,7 +260,7 @@ function processLine($instruction, $arguments)
         if (count($arguments) > 0)
             $labels[$arguments[0]] = $order;
 
-    if (preg_match('/^CALL$|^RETURN$|^JUMP$|^JUMPIFEQ$|^JUMPIFNEQ$/', $instruction)) {
+    if (preg_match('/^CALL$|^JUMP$|^JUMPIFEQ$|^JUMPIFNEQ$/', $instruction)) {
         $jumpCount++;
         if (count($arguments) > 0) {
             $jumpInstructions[$order] = [$instruction, $arguments[0]];
@@ -276,7 +271,7 @@ function processLine($instruction, $arguments)
     $inst->setAttribute("order", $order++);
     $inst->setAttribute("opcode", $instruction);
     for ($j = 0; $j < count($arguments); $j++) {
-        [$type, $value] = parseArgument($arguments[$j], $instructionsArgs[$instruction][$j]);
+        [$type, $value] = parseArgument($arguments[$j], $instructionList[$instruction][$j]);
         $arg = $xmlOut->createElement('arg' . ($j + 1), $value);
         $arg->setAttribute("type", $type);
         $inst->appendChild($arg);
@@ -314,14 +309,14 @@ function parseArgument($arg, $expectedType)
                 $value = substr($arg, 6, strlen($arg));
                 break;
             }
-            if (preg_match('/^nil@nil/', $arg)) {
+            if (preg_match('/^nil@nil$/', $arg)) {
                 $type = "nil";
                 $value = "nil";
                 break;
             }
 
         case "var":
-            if (preg_match('/^(GF|TF|LF)@[a-z_\-$&%*!?A-Z][a-z_\-$&%*!?0-9A-Z]*/', $arg)) {
+            if (preg_match('/^(GF|TF|LF)@[a-z_\-$&%*!?A-Z][a-z_\-$&%*!?0-9A-Z]*$/', $arg)) {
                 $type = "var";
                 break;
             }
@@ -337,7 +332,7 @@ function parseArgument($arg, $expectedType)
             exit(23);
 
         case "label":
-            if (preg_match('/^[a-z_\-$&%*!?A-Z][a-z_\-$&%*!?0-9A-Z]*/', $arg)) {
+            if (preg_match('/^[a-z_\-$&%*!?A-Z][a-z_\-$&%*!?0-9A-Z]*$/', $arg)) {
                 $type = "label";
                 break;
             }
