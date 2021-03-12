@@ -9,7 +9,7 @@
 # ----------------------------
 ini_set('display_errors', 'stderr');
 
-# INSTRUCTION SET
+/* Instruction set */
 $instructionList = array(
     "MOVE" => array("var", "symb"),
     "CREATEFRAME" => array(),
@@ -67,7 +67,7 @@ $instructionList = array(
 
 );
 
-# VARIABLES
+/* Vars */
 $commentCount = 0;
 $locCount = 0;
 $labelCount = 0;
@@ -80,7 +80,7 @@ $jumpInstructions = array();
 $options = getopt("", ["help", "stats:", "loc", "comments", "labels", "jumps", "fwjumps", "backjumps", "badjumps"]);
 $longOptions = ["help", "stats", "loc", "comments", "labels", "jumps", "fwjumps", "backjumps", "badjumps"];
 
-# ARGUMENT CHECKS
+/* Arguments check */
 if (array_key_exists("help", $options)) {
     if ($argc === 2)
         printHelp($argv[0]);
@@ -104,7 +104,7 @@ for ($i = 1; $i < $argc; $i++) {
     }
 }
 
-# HEADER CHECK
+/* Header check */
 do {
     $line = fgets(STDIN);
     if (preg_match('/#/', $line))
@@ -118,8 +118,7 @@ if (strtolower(trim($line)) !== ".ippcode21") {
     exit(21);
 }
 
-
-# XML GENERATION | SYN and LEN checks
+/* creating DOM */
 $xmlOut = new DOMDocument('1.0', "UTF-8");
 $xmlOut->formatOutput = true;
 
@@ -127,6 +126,7 @@ $root = $xmlOut->createElement('program');
 $root = $xmlOut->appendChild($root);
 $root->setAttribute("language", "IPPcode21");
 
+/* Process input */
 $order = 1;
 while ($line = fgets(STDIN)) {
     $line = trim($line);
@@ -147,7 +147,7 @@ while ($line = fgets(STDIN)) {
     }
 }
 
-# STATS BONUS 
+/* Stats jump count */
 $labelCount = count(array_unique($labels));
 foreach ($jumpInstructions as $key => $jump) {
     if (!array_key_exists($jump[1], $labels)) {
@@ -160,17 +160,18 @@ foreach ($jumpInstructions as $key => $jump) {
         $backJumpsCount++;
 }
 
+/* Stats handling arguments */
 $file = null;
 $hasFile = false;
 $fileCount = 0;
 $stats = array();
 for ($i = 1; $i < $argc; $i++) {
     if ($hasFile) {
-        # check for next file
+        /* check for next file */
         if ($argv[$i] === "stats") {
-            printStatsToFile($file, $stats); # write to current file
+            printStatsToFile($file, $stats); /* write to current file */
             $stats = array();
-            $file = $options["stats"][$fileCount]; # assign new file
+            $file = $options["stats"][$fileCount]; /* assign new file */
             $fileCount++;
         } else {
             switch ($argv[$i]) {
@@ -198,7 +199,7 @@ for ($i = 1; $i < $argc; $i++) {
             }
         }
     } else {
-        # Check for first file. If another option before file exists exit with error
+        /* Check for first file. If another option before file exists exit with error */
         if ($argv[$i] === "stats") {
             $hasFile = true;
             if (is_array(($options["stats"])))
@@ -212,18 +213,17 @@ for ($i = 1; $i < $argc; $i++) {
     }
 }
 
-# Write stats to last assigned file
+/* Write stats to last assigned file */
 if ($hasFile)
     printStatsToFile($file, $stats);
 
-# MAIN OUTPUT
+/* Program Output */
 echo $xmlOut->saveXML();
 # -----------------------------------------------------------------------------------
 
-
-# FUNCTIONS
-
-# PRINT BONUS STATS TO FILE
+/*
+    Print statistics to file
+*/
 function printStatsToFile($file, $stats)
 {
     if (count($stats) === 0)
@@ -241,7 +241,11 @@ function printStatsToFile($file, $stats)
     fclose($myfile);
 }
 
-# PROCESS INSTRUCTION NAME AND ARGUMENTS
+/*
+    Process whole line.
+    Checks if opcode of instruction exists and calls function to parse arguments of instruction.
+    Count stats infromations.
+*/
 function processLine($instruction, $arguments)
 {
     global $root, $order, $labels, $jumpCount, $labels, $jumpInstructions, $xmlOut, $instructionList;
@@ -260,7 +264,7 @@ function processLine($instruction, $arguments)
         if (count($arguments) > 0)
             $labels[$arguments[0]] = $order;
 
-    if (preg_match('/^CALL$|^JUMP$|^JUMPIFEQ$|^JUMPIFNEQ$/', $instruction)) {
+    if (preg_match('/^CALL$|^RETURN$|^JUMP$|^JUMPIFEQ$|^JUMPIFNEQ$/', $instruction)) {
         $jumpCount++;
         if (count($arguments) > 0) {
             $jumpInstructions[$order] = [$instruction, $arguments[0]];
@@ -279,7 +283,9 @@ function processLine($instruction, $arguments)
     $root->appendChild($inst);
 }
 
-# SYNTAX CHECK AND PARSING ARGUMENTS
+/*
+    Do syntax check of argument and parse to correct format.
+*/
 function parseArgument($arg, $expectedType)
 {
     $type = "";
@@ -344,7 +350,6 @@ function parseArgument($arg, $expectedType)
     return [$type, $value];
 }
 
-# PRINT HELP
 function printHelp($scriptName)
 {
     fprintf(STDERR, "Parser for IPPcode21, Version 1.0, Author: Peter Zdravecký\n");
