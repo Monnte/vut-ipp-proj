@@ -27,7 +27,6 @@ $options = getopt("", $opts);
 $diffScript = "diff";
 
 /* Arguments check */
-
 if (array_key_exists("help", $options)) {
     if ($argc === 2)
         printHelp($argv[0]);
@@ -160,89 +159,151 @@ unlink($tmpFile);
 
 # ----------------------------------------------------
 
-/* 
-    Creating html website.
-*/
-$dirTests = "";
+$dirreport = "";
 foreach ($tests as $key => $value) {
     $passedTests = "";
     $failedTests = "";
     sort($value["passed"]);
     sort($value["failed"]);
     foreach ($value["passed"] as $pTests)
-        $passedTests .= "<div class='grid-item greenItem'>$pTests</div>";
+        $passedTests .= '<tr class="test-row"><td class="test-name">' . $pTests . '</td><td class="test-result green">Passed</td></tr>';
     foreach ($value["failed"] as $pFailed)
-        $failedTests .= "<div class='grid-item redItem'>$pFailed</div>";
+        $failedTests .= '<tr class="test-row"><td class="test-name">' . $pFailed . '</td><td class="test-result red">Failed</td></tr>';
+
 
     $allFailed = count($value["failed"]);
     $allPassed = count($value["passed"]);
     $allCount = $allFailed + $allPassed;
-    if ($allCount != 0)
-        $dirTests .= "
-            <div style='margin:1em 0 0 0.5em;'>    
-                <h2 onclick='toggleShow(\"$key\")' style='margin:0.1em 0;display:inline-block;' class='directoryInfo'>$key</h2>
-                <div id='$key' style='display:none;'>
-                    <p  style='margin:0.1em 0'> <b>PASSED: <span style='color:green'> $allPassed / $allCount </span></b><br><div class='grid-container greenContainer'>$passedTests</div></p>
-                    <p  style='margin:0.1em 0'> <b>FAILED: <span style='color:red'> $allFailed / $allCount </span></b><br><div class='grid-container redContainer'>$failedTests</div></p>
+
+    $dirname = $key;
+    if ($dirname == ".") $dirname = "Current directory";
+    $report = '
+        <div class="flex-item">
+            <h2 class="dirname">' . $dirname . '</h2>
+                <div class="report">
+                    <h4>All: <span>' . $allCount . '</span></h4>
+                    <h4>Passed: <span class="green">' . $allPassed . '</span></h4>
+                    <h4>Failed: <span class="red">' . $allFailed . '</span></h4>
                 </div>
-            </div>
-            ";
+                <table>
+                    <tbody>
+                        ' . $passedTests . '
+                        ' . $failedTests . '
+                    </tbody>
+            </table>
+        </div>
+    ';
+    if ($allCount != 0)
+        $dirreport .= $report;
 }
 
-$doc = "
-<style>
-   body {margin:1em;}
-   h2   {text-decoration:underline;}
-   .directoryInfo:hover {color:blue;cursor:pointer;}
-   .grid-container {
-   display: grid;
-   grid-template-columns: auto auto auto;
-   padding: 10px;
-   }
-   .grid-item {
-   border: 1px solid #000;
-   padding: 0.1em;
-   text-align: center;
-   }
-   .greenContainer{background-color: #90ee90;}
-   .greenItem{background-color: #64e764;}
-   .redContainer{background-color: #ff9a9a;}
-   .redItem{background-color: #ff6868;}
-</style>
-<html>
-   <head>
-      <meta charset='UTF-8'>
-      <meta author='Peter Zdravecký'>
-      <title>IPPcode21 Tester</title>
-   </head>
-   <body>
-      <h1 style='border-bottom:2px solid black'>IPP tests</h1>
-      <div style='margin-top:1em;font-weight:bold;'>
-         <h2 style=''>Summary all tests</h2>
-         <p>PASSED: <span style='color:green'> $passed / $allTests </span> </p>
-         <p>FAILED: <span style='color:red'> $failed / $allTests </span> </p>
+$mode = $interpretOnly ? "Interpret only" : ($parseOnly ? "Parse only" : "Both");
+
+$doc =
+    '
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IPP21 TEST REPORT</title>
+
+    <style>
+      html {
+        box-sizing: border-box;
+      }
+      *, *:before, *:after {
+        box-sizing: inherit;
+      }
+      html {
+        font-family: Arial, Helvetica, sans-serif;
+        background-color: #f9f9f9;
+      }
+      h1,
+      body {
+        margin: 0;
+      }
+      h1 {
+        font-family: "Courier New", monospace;
+      }
+      h2,
+      h3 {
+        font-weight: bold;
+      }
+      h4 {
+        margin: 10px 0;
+      }
+      .content {
+        padding: 2em;
+      }
+      .head {
+        background-color: #ebebeb;
+      }
+      .green {
+        color: #4cbb17;
+      }
+      .red {
+        color: #ce1212;
+      }
+      .report {
+        font-family: "Courier New", monospace;
+      }
+      .shadow {
+        box-shadow: 0px 12px 18px -9px rgba(0, 0, 0, 0.3);
+      }
+      .flex {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch;
+      }
+      .flex-item {
+        width: 33%;
+        padding-right: 2em;
+      }
+      .flex-item:last-child {
+        padding-right: 0;
+      }
+      .test-result{
+        text-align:right;
+      }
+      table {
+        width: 100%;
+        background-color: #ccc;
+        border: 1px solid rgb(155, 155, 155);
+      }
+      td{
+          border:1px solid #f9f9f9;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="content head shadow">
+      <h1>IPP21 Tester report</h1>
+      <p>
+        Mode: <b>' . $mode . '</b>
+      </p>
+      <div class="report">
+        <h2>All tests: <span id="all">' . $allTests . '</span></h2>
+        <h3>Passed: <span id="passed" class="green">' . $passed . '</span></h3>
+        <h3>Failed: <span id="failed" class="red">' . $failed . '</span></h3>
       </div>
-      <div stlye='margin:1em 0'>
-         <h2 style=''>Tests by directories</h2>
-         $dirTests
+    </div>
+
+    <div class="content main">
+      <h1>Report by directories</h1>
+      <div id="dir-report">
+        <div class="flex">
+            ' . $dirreport . '
+        </div>
       </div>
-   </body>
+    </div>
+  </body>
 </html>
-<script>
-   function toggleShow(key) {
-       var div = document.getElementById(key);
-       if (div.style.display === 'none') {
-         div.style.display = 'block';
-       } else {
-         div.style.display = 'none';
-       }
-   } 
-</script>\n
-";
+';
 
-/* Program Output */
 echo $doc;
-
 # ----------------------------------------------------
 
 /* 
@@ -283,12 +344,13 @@ function CheckRetValue($testRc, $retCode)
 function doTest($testSrc, $testIn, $testOut, $testRc)
 {
     global $parseScript, $interpretScript, $diffScript, $parseOnly, $interpretOnly, $tmpFile, $jexamcfg;
+
     if ($parseOnly) {
         exec("timeout 10s php7.4 $parseScript < $testSrc 2>/dev/null", $output, $retCode);
     } else if ($interpretOnly) {
         exec("timeout 10s python3.8 $interpretScript --source=$testSrc --input=$testIn 2>/dev/null", $output, $retCode);
     } else {
-        exec("php7.4 $parseScript < $testSrc", $output, $retCode);
+        exec("php7.4 $parseScript < $testSrc 2>/dev/null", $output, $retCode);
         if ($retCode != 0) {
             if (CheckRetValue($testRc, $retCode))
                 return true;
@@ -319,26 +381,26 @@ function doTest($testSrc, $testIn, $testOut, $testRc)
 
 function printHelp($name)
 {
-    fprintf(STDERR, "Tester for interpret.py and parse.php, Version 1.0, Author: Peter Zdravecký\n");
-    fprintf(STDERR, "==========================================================\n");
-    fprintf(STDERR, "Usage: $name \n [ --help | --directory=dir | --recursive | --parse-script=script | --int-script=script | --parse-only | --int-only | --jexamxml=file | --jexamcfg=file | testliist=file | match=regex ]");
+    echo ("Tester for interpret.py and parse.php, Version 1.0, Author: Peter Zdravecký\n");
+    echo ("==========================================================\n");
+    echo ("Usage: $name \n [ --help | --directory=dir | --recursive | --parse-script=script | --int-script=script | --parse-only | --int-only | --jexamxml=file | --jexamcfg=file | testliist=file | match=regex ]");
 
-    fprintf(STDERR, "    --directory    | Search directory for tests\n");
-    fprintf(STDERR, "    --recursive    | Search in directory recursivly in subdirectories\n");
-    fprintf(STDERR, "    --parse-script | Path to parse script\n");
-    fprintf(STDERR, "    --int-script   | Path to interpret script\n");
-    fprintf(STDERR, "    --parse-only   | Test only parse script\n");
-    fprintf(STDERR, "    --int-onl      | Test only interpret script\n");
-    fprintf(STDERR, "    --jexamxml     | Path to xml copmarator\n");
-    fprintf(STDERR, "    --jexamcfg     | Path to xml copmarator config\n");
-    fprintf(STDERR, "    --testliist    | File that contain directories to search for tests\n");
-    fprintf(STDERR, "    --match        | Do tests only match regex\n");
+    echo ("    --directory    | Search directory for tests\n");
+    echo ("    --recursive    | Search in directory recursivly in subdirectories\n");
+    echo ("    --parse-script | Path to parse script\n");
+    echo ("    --int-script   | Path to interpret script\n");
+    echo ("    --parse-only   | Test only parse script\n");
+    echo ("    --int-onl      | Test only interpret script\n");
+    echo ("    --jexamxml     | Path to xml copmarator\n");
+    echo ("    --jexamcfg     | Path to xml copmarator config\n");
+    echo ("    --testliist    | File that contain directories to search for tests\n");
+    echo ("    --match        | Do tests only match regex\n");
 
 
-    fprintf(STDERR, "\nExample usage: \n");
-    fprintf(STDERR, "       ./parse.php --help \n");
-    fprintf(STDERR, "       ./parse.php --directory=tests --parse-only --parse-script=./parse.php \n");
-    fprintf(STDERR, "       ./parse.php --recursive --int-only \n");
-    fprintf(STDERR, "==========================================================\n");
+    echo ("\nExample usage: \n");
+    echo ("       ./parse.php --help \n");
+    echo ("       ./parse.php --directory=tests --parse-only --parse-script=./parse.php \n");
+    echo ("       ./parse.php --recursive --int-only \n");
+    echo ("==========================================================\n");
     exit(0);
 }

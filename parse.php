@@ -352,32 +352,32 @@ function parseArgument($arg, $expectedType)
 
 function printHelp($scriptName)
 {
-    fprintf(STDERR, "Parser for IPPcode21, Version 1.0, Author: Peter Zdravecký\n");
-    fprintf(STDERR, "==========================================================\n");
-    fprintf(STDERR, "Usage: $scriptName \n");
-    fprintf(STDERR, "- Accepts input from STDIN \n");
+    echo ("Parser for IPPcode21, Version 1.0, Author: Peter Zdravecký\n");
+    echo ("==========================================================\n");
+    echo ("Usage: $scriptName \n");
+    echo ("- Accepts input from STDIN \n");
 
-    fprintf(STDERR, "\nOptional parameters:\n");
-    fprintf(STDERR, "[ help | stats ]\n");
-    fprintf(STDERR, "   --help        | Prints help. No other arguments accepted with these option\n");
-    fprintf(STDERR, "   --stats=file  | Sets the file that the statistics will be written to.\n");
+    echo ("\nOptional parameters:\n");
+    echo ("[ help | stats ]\n");
+    echo ("   --help        | Prints help. No other arguments accepted with these option\n");
+    echo ("   --stats=file  | Sets the file that the statistics will be written to.\n");
 
-    fprintf(STDERR, "\nTo use these parameters, --stats has to be already set!\n");
-    fprintf(STDERR, "[ loc | comments | labels | jumps | fwjumps | backjumps | badjumps ]\n");
-    fprintf(STDERR, "    --loc        | Count lines where occurs instructions in the code\n");
-    fprintf(STDERR, "    --comments   | Count number of comments\n");
-    fprintf(STDERR, "    --labels     | Count uniqe labels\n");
-    fprintf(STDERR, "    --jumps      | Count instructions which provides jump in the program\n");
-    fprintf(STDERR, "    --fwjumps    | Count forward jumps\n");
-    fprintf(STDERR, "    --backjumps  | Count backwards jumps\n");
-    fprintf(STDERR, "    --badjumps   | Count jumps which refers to a non-existent labels\n");
-    fprintf(STDERR, "Statistics are logged in the order that they were written in arguments.\n");
+    echo ("\nTo use these parameters, --stats has to be already set!\n");
+    echo ("[ loc | comments | labels | jumps | fwjumps | backjumps | badjumps ]\n");
+    echo ("    --loc        | Count lines where occurs instructions in the code\n");
+    echo ("    --comments   | Count number of comments\n");
+    echo ("    --labels     | Count uniqe labels\n");
+    echo ("    --jumps      | Count instructions which provides jump in the program\n");
+    echo ("    --fwjumps    | Count forward jumps\n");
+    echo ("    --backjumps  | Count backwards jumps\n");
+    echo ("    --badjumps   | Count jumps which refers to a non-existent labels\n");
+    echo ("Statistics are logged in the order that they were written in arguments.\n");
 
-    fprintf(STDERR, "\nExample usage: \n");
-    fprintf(STDERR, "       ./parse.php --help \n");
-    fprintf(STDERR, "       ./parse.php --stats=file1 --loc\n");
-    fprintf(STDERR, "       ./parse.php --stats=file1 --comment --loc --badjumps \n");
-    fprintf(STDERR, "       ./parse.php --stats=file1 --loc --stats=file2 --comments \n");
-    fprintf(STDERR, "==========================================================\n");
+    echo ("\nExample usage: \n");
+    echo ("       ./parse.php --help \n");
+    echo ("       ./parse.php --stats=file1 --loc\n");
+    echo ("       ./parse.php --stats=file1 --comment --loc --badjumps \n");
+    echo ("       ./parse.php --stats=file1 --loc --stats=file2 --comments \n");
+    echo ("==========================================================\n");
     exit(0);
 }
